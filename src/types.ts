@@ -17,6 +17,14 @@ export interface Task {
   lastCompletedAt?: string; // ISO string
 }
 
+export interface UserProfile {
+  name: string;
+  email: string;
+  mobile: string;
+  profession: 'student' | 'corporate' | 'creative' | 'entrepreneur' | 'other';
+  isSetupComplete: boolean;
+}
+
 export interface LockedApp {
   id: string;
   name: string;
@@ -25,6 +33,7 @@ export interface LockedApp {
   unlockTime: string; // HH:mm
   usageLimit: number; // minutes
   category: 'social' | 'entertainment' | 'gaming' | 'utility';
+  hoursSpentToday: number;
 }
 
 export interface OTPState {

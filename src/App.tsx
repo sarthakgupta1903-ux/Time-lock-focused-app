@@ -28,23 +28,58 @@ import {
   Shield,
   Smartphone,
   Zap,
-  Fingerprint
+  Fingerprint,
+  Play,
+  Pause,
+  RotateCcw,
+  BarChart3,
+  Award
 } from 'lucide-react';
-import { Task, TaskSuggestion, LockedApp, OTPState } from './types';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area 
+} from 'recharts';
+import { Task, TaskSuggestion, LockedApp, OTPState, UserProfile } from './types';
 
 export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [lockedApps, setLockedApps] = useState<LockedApp[]>([]);
   const [otp, setOtp] = useState<OTPState | null>(null);
+  const [otpTimer, setOtpTimer] = useState(300); // 5 mins in seconds
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [isAddingTask, setIsAddingTask] = useState(false);
+  const [taskDeleting, setTaskDeleting] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filter, setFilter] = useState<'all' | 'today' | 'upcoming'>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   const [activeView, setActiveView] = useState<'dashboard' | 'locks' | 'schedule' | 'performance' | 'reflect' | 'settings'>('dashboard');
+  
+  // Pomodoro State
+  const [pomodoro, setPomodoro] = useState<{
+    isActive: boolean;
+    timeLeft: number;
+    mode: 'work' | 'break';
+    completedSessions: number;
+  }>({
+    isActive: false,
+    timeLeft: 25 * 60,
+    mode: 'work',
+    completedSessions: 0
+  });
 
   // Local storage persistence
   useEffect(() => {
+    const savedUser = localStorage.getItem('timelock_user');
+    if (savedUser) setUser(JSON.parse(savedUser));
+
     const savedTasks = localStorage.getItem('focusflow_tasks');
     const savedLocks = localStorage.getItem('timelock_apps');
 
@@ -52,9 +87,9 @@ export default function App() {
       setLockedApps(JSON.parse(savedLocks));
     } else {
       const initialLocks: LockedApp[] = [
-        { id: '1', name: 'Instagram', icon: 'camera', isLocked: true, unlockTime: '21:00', usageLimit: 30, category: 'social' },
-        { id: '2', name: 'YouTube', icon: 'video', isLocked: true, unlockTime: '18:00', usageLimit: 60, category: 'entertainment' },
-        { id: '3', name: 'Reddit', icon: 'message-circle', isLocked: false, unlockTime: '22:00', usageLimit: 15, category: 'social' },
+        { id: '1', name: 'Instagram', icon: 'camera', isLocked: true, unlockTime: '21:00', usageLimit: 30, category: 'social', hoursSpentToday: 3.2 },
+        { id: '2', name: 'YouTube', icon: 'video', isLocked: true, unlockTime: '18:00', usageLimit: 60, category: 'entertainment', hoursSpentToday: 1.5 },
+        { id: '3', name: 'TikTok', icon: 'zap', isLocked: true, unlockTime: '22:00', usageLimit: 15, category: 'social', hoursSpentToday: 4.8 },
       ];
       setLockedApps(initialLocks);
       localStorage.setItem('timelock_apps', JSON.stringify(initialLocks));
@@ -63,69 +98,66 @@ export default function App() {
     if (savedTasks) {
       try {
         let loadedTasks: Task[] = JSON.parse(savedTasks);
-        
-        // Recurring Tasks Maintenance Logic
         const now = new Date();
         const maintainedTasks = loadedTasks.map(task => {
-          if (!task.recurrence || task.recurrence === 'none' || !task.isCompleted || !task.lastCompletedAt) {
-            return task;
-          }
-
+          if (!task.recurrence || task.recurrence === 'none' || !task.isCompleted || !task.lastCompletedAt) return task;
           const lastCompleted = new Date(task.lastCompletedAt);
           const diffDays = Math.floor((now.getTime() - lastCompleted.getTime()) / (1000 * 3600 * 24));
-
           let shouldReset = false;
-          if (task.recurrence === 'daily' && diffDays >= 1) {
-            shouldReset = true;
-          } else if (task.recurrence === 'alternate' && diffDays >= 2) {
-            shouldReset = true;
-          }
-
-          if (shouldReset) {
-            return { ...task, isCompleted: false };
-          }
-          return task;
+          if (task.recurrence === 'daily' && diffDays >= 1) shouldReset = true;
+          else if (task.recurrence === 'alternate' && diffDays >= 2) shouldReset = true;
+          return shouldReset ? { ...task, isCompleted: false } : task;
         });
-
         setTasks(maintainedTasks);
       } catch (e) {
-        console.error('Failed to load tasks', e);
+        setTasks([]);
       }
-    } else {
-      // Mock initial tasks for "cool" first look
-      const initialTasks: Task[] = [
-        {
-          id: '1',
-          title: 'Design high-fidelity UI for Task Hub',
-          priority: 'high',
-          isCompleted: false,
-          category: 'work',
-          createdAt: new Date().toISOString(),
-          dueDate: new Date().toISOString(),
-        },
-        {
-          id: '2',
-          title: 'Daily workout - 30 mins cardio',
-          priority: 'medium',
-          isCompleted: true,
-          category: 'health',
-          createdAt: new Date().toISOString(),
-          dueDate: new Date().toISOString(),
-        },
-        {
-          id: '3',
-          title: 'Review weekly progress and set next goals',
-          priority: 'high',
-          isCompleted: false,
-          category: 'work',
-          createdAt: new Date().toISOString(),
-          dueDate: new Date(Date.now() + 86400000).toISOString(),
-        }
-      ];
-      setTasks(initialTasks);
-      localStorage.setItem('focusflow_tasks', JSON.stringify(initialTasks));
     }
   }, []);
+
+  // Pomodoro Logic
+  const togglePomodoro = () => setPomodoro(prev => ({ ...prev, isActive: !prev.isActive }));
+  const resetPomodoro = () => setPomodoro({ ...pomodoro, isActive: false, timeLeft: pomodoro.mode === 'work' ? 25 * 60 : 5 * 60 });
+
+  useEffect(() => {
+    let interval: any;
+    if (pomodoro.isActive && pomodoro.timeLeft > 0) {
+      interval = setInterval(() => {
+        setPomodoro(prev => ({ ...prev, timeLeft: prev.timeLeft - 1 }));
+      }, 1000);
+    } else if (pomodoro.isActive && pomodoro.timeLeft === 0) {
+      const nextMode = pomodoro.mode === 'work' ? 'break' : 'work';
+      const nextTime = nextMode === 'work' ? 25 * 60 : 5 * 60;
+      setPomodoro(prev => ({
+        ...prev,
+        mode: nextMode,
+        timeLeft: nextTime,
+        isActive: false,
+        completedSessions: prev.mode === 'work' ? prev.completedSessions + 1 : prev.completedSessions
+      }));
+      // Alert/Sound could go here
+    }
+    return () => clearInterval(interval);
+  }, [pomodoro.isActive, pomodoro.timeLeft, pomodoro.mode]);
+
+  useEffect(() => {
+    let interval: any;
+    if (otp && otpTimer > 0) {
+      interval = setInterval(() => {
+        setOtpTimer(prev => prev - 1);
+      }, 1000);
+    } else if (otpTimer === 0) {
+      setOtp(null);
+    }
+    return () => clearInterval(interval);
+  }, [otp, otpTimer]);
+
+  const generateOTP = (appId: string) => {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setOtp({ code, expiresAt: new Date(Date.now() + 300000).toISOString(), isAvailable: true, targetAppId: appId });
+    setOtpTimer(300);
+  };
+
 
   useEffect(() => {
     if (tasks.length > 0 || localStorage.getItem('focusflow_tasks')) {
@@ -255,6 +287,26 @@ export default function App() {
           </nav>
 
           <div className="pt-6 border-t border-[#1C1C1F] w-full">
+            <div className="bg-[#151518] rounded-2xl p-4 mb-4 border border-[#1C1C1F]">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-mono text-[#8E9299] uppercase tracking-widest">{pomodoro.mode} session</span>
+                <span className="text-white font-bold">{Math.floor(pomodoro.timeLeft / 60)}:{String(pomodoro.timeLeft % 60).padStart(2, '0')}</span>
+              </div>
+              <div className="flex gap-2">
+                <button 
+                  onClick={togglePomodoro}
+                  className="flex-1 py-2 bg-[#F27D26]/10 text-[#F27D26] rounded-xl hover:bg-[#F27D26]/20 transition-all flex items-center justify-center"
+                >
+                  {pomodoro.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                </button>
+                <button 
+                  onClick={resetPomodoro}
+                  className="p-2 text-[#8E9299] hover:text-white rounded-xl transition-all"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
             <NavItem icon={<Settings />} label="Settings" active={activeView === 'settings'} onClick={() => setActiveView('settings')} />
           </div>
         </aside>
@@ -283,12 +335,12 @@ export default function App() {
               </button>
               <div className="flex items-center gap-3 border-l border-[#1C1C1F] pl-6 ml-2">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-white leading-none mb-1">Alex Riva</p>
-                  <p className="text-[10px] text-[#8E9299] font-mono tracking-widest uppercase">Pro Dev</p>
+                  <p className="text-sm font-medium text-white leading-none mb-1">{user?.name || 'Authorized User'}</p>
+                  <p className="text-[10px] text-[#F27D26] font-mono tracking-widest uppercase">{user?.profession || 'Discipline Unit'}</p>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#F27D26] to-[#FF4444] p-[1px]">
                   <div className="w-full h-full rounded-full bg-[#0C0C0E] flex items-center justify-center p-1 overflow-hidden">
-                     <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alex" alt="Avatar" className="w-full h-full object-cover" />
+                     <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name || 'User'}`} alt="Avatar" className="w-full h-full object-cover" />
                   </div>
                 </div>
               </div>
@@ -383,7 +435,7 @@ export default function App() {
                             key={task.id} 
                             task={task} 
                             onToggle={() => toggleTask(task.id)}
-                            onDelete={() => deleteTask(task.id)}
+                            onDelete={() => setTaskDeleting(task.id)}
                             index={idx}
                           />
                         ))
@@ -395,15 +447,21 @@ export default function App() {
                 <TimeLockView 
                   lockedApps={lockedApps} 
                   otp={otp} 
-                  generateOTP={(appId) => {
-                    const code = Math.floor(100000 + Math.random() * 900000).toString();
-                    setOtp({ code, expiresAt: new Date(Date.now() + 300000).toISOString(), isAvailable: true, targetAppId: appId });
-                  }}
+                  otpTimer={otpTimer}
+                  generateOTP={generateOTP}
                   onUnlock={(appId) => {
                     setLockedApps(lockedApps.map(a => a.id === appId ? { ...a, isLocked: false } : a));
                     setOtp(null);
                   }}
+                  onUpdateUsage={(apps) => {
+                    setLockedApps(apps);
+                    localStorage.setItem('timelock_apps', JSON.stringify(apps));
+                  }}
                 />
+              ) : activeView === 'performance' ? (
+                <PerformanceView tasks={tasks} apps={lockedApps} />
+              ) : activeView === 'schedule' ? (
+                <ScheduleView tasks={tasks} />
               ) : (
                 <ViewPlaceholder label={activeView} />
               )}
@@ -526,6 +584,78 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {taskDeleting && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setTaskDeleting(null)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative w-full max-w-sm bg-[#151518] border border-[#1C1C1F] rounded-[32px] p-8 text-center"
+            >
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Delete Objective?</h3>
+              <p className="text-[#8E9299] text-sm mb-8">This action will permanently purge this record from your neural history.</p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setTaskDeleting(null)}
+                  className="flex-1 py-3 bg-[#1C1C1F] text-white rounded-xl font-medium"
+                >
+                  Abort
+                </button>
+                <button 
+                  onClick={() => {
+                    deleteTask(taskDeleting);
+                    setTaskDeleting(null);
+                  }}
+                  className="flex-1 py-3 bg-red-500 text-white rounded-xl font-bold"
+                >
+                  Purge Task
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* Onboarding Modal */}
+      <AnimatePresence>
+        {(!user || !user.isSetupComplete) && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0C0C0E]">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full max-w-2xl bg-[#151518] border border-[#1C1C1F] rounded-[48px] p-12 shadow-2xl relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-[#F27D26]/10 blur-[100px] rounded-full translate-x-1/2 -translate-y-1/2" />
+              
+              <div className="relative z-10 text-center mb-12">
+                 <div className="w-20 h-20 bg-[#F27D26] rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-[#F27D26]/20">
+                    <Shield className="w-10 h-10 text-white" />
+                 </div>
+                 <h2 className="text-4xl font-black text-white tracking-tighter mb-2">Initialize Your Armor</h2>
+                 <p className="text-[#8E9299]">Setup your neural discipline profile to begin the reorganization.</p>
+              </div>
+
+              <OnboardingForm onComplete={(profile) => {
+                setUser(profile);
+                localStorage.setItem('timelock_user', JSON.stringify(profile));
+              }} />
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -567,16 +697,21 @@ function ViewPlaceholder({ label }: { label: string }) {
 function TimeLockView({ 
   lockedApps, 
   otp, 
+  otpTimer,
   generateOTP, 
-  onUnlock 
+  onUnlock,
+  onUpdateUsage
 }: { 
   lockedApps: LockedApp[], 
   otp: OTPState | null, 
+  otpTimer: number,
   generateOTP: (id: string) => void,
-  onUnlock: (id: string) => void
+  onUnlock: (id: string) => void,
+  onUpdateUsage: (apps: LockedApp[]) => void
 }) {
   const [typedOtp, setTypedOtp] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
 
   const handleVerify = () => {
     if (otp && typedOtp === otp.code) {
@@ -589,16 +724,39 @@ function TimeLockView({
     }
   };
 
+  const runScan = () => {
+    setIsScanning(true);
+    setTimeout(() => {
+      setIsScanning(false);
+      // Simulate discovering more usage or unlocking something
+      const updated = lockedApps.map(app => ({
+        ...app,
+        hoursSpentToday: app.hoursSpentToday + (Math.random() * 0.5)
+      }));
+      onUpdateUsage(updated);
+    }, 3000);
+  };
+
   return (
     <div className="space-y-10">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-white mb-1">TimeLock Control</h2>
           <p className="text-[#8E9299]">Neural habits reorganization interface.</p>
         </div>
-        <div className="bg-red-500/10 border border-red-500/20 px-6 py-3 rounded-2xl flex items-center gap-3">
-          <Shield className="w-5 h-5 text-red-400" />
-          <span className="text-sm font-bold text-red-400">Restricted Ops Active</span>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={runScan}
+            disabled={isScanning}
+            className="flex items-center gap-2 px-6 py-3 bg-[#1C1C1F] text-[#F27D26] border border-[#F27D26]/20 rounded-2xl hover:bg-[#F27D26]/5 transition-all disabled:opacity-50"
+          >
+            <Smartphone className={`w-4 h-4 ${isScanning ? 'animate-bounce' : ''}`} />
+            {isScanning ? 'Scanning Interceptors...' : 'Scan Distractions'}
+          </button>
+          <div className="bg-red-500/10 border border-red-500/20 px-6 py-3 rounded-2xl flex items-center gap-3">
+            <Shield className="w-5 h-5 text-red-400" />
+            <span className="text-sm font-bold text-red-400">Restricted Mode</span>
+          </div>
         </div>
       </div>
 
@@ -611,30 +769,40 @@ function TimeLockView({
                 whileHover={{ y: -4 }}
                 className={`p-6 rounded-[32px] border transition-all ${
                   app.isLocked 
-                  ? 'bg-[#151518] border-[#1C1C1F] hover:border-red-500/30' 
+                  ? 'bg-[#151518] border-[#1C1C1F] hover:border-red-500/30 shadow-xl shadow-red-500/5' 
                   : 'bg-green-500/5 border-green-500/20 shadow-lg shadow-green-500/5'
                 }`}
               >
                 <div className="flex items-center justify-between mb-6">
-                   <div className={`p-4 rounded-2xl ${app.isLocked ? 'bg-[#0C0C0E] text-[#8E9299]' : 'bg-green-500/10 text-green-400'}`}>
+                   <div className={`p-4 rounded-2xl ${app.isLocked ? 'bg-[#0C0C0E] text-red-400 shadow-inner' : 'bg-green-500/10 text-green-400'}`}>
                      <Smartphone className="w-6 h-6" />
                    </div>
                    {app.isLocked ? (
-                     <button 
-                      onClick={() => generateOTP(app.id)}
-                      className="text-xs font-mono uppercase tracking-[0.2em] text-[#F27D26] hover:text-[#FF4444] transition-colors"
-                     >
-                       Request Unlock
-                     </button>
+                     <div className="text-right">
+                        <p className="text-[10px] font-mono text-red-400/60 uppercase tracking-widest mb-1">Addiction Level</p>
+                        <p className="text-sm font-bold text-white">{Math.floor(app.hoursSpentToday * 10)}% Exposure</p>
+                     </div>
                    ) : (
-                     <span className="text-xs font-mono uppercase tracking-[0.2em] text-green-400">Status: Free</span>
+                     <span className="text-xs font-mono uppercase tracking-[0.2em] text-green-400">Status: Secure</span>
                    )}
                 </div>
                 <h4 className="text-xl font-bold text-white mb-1">{app.name}</h4>
-                <p className="text-sm text-[#8E9299] mb-4">Locked until {app.unlockTime}</p>
-                <div className="h-1 w-full bg-[#0C0C0E] rounded-full overflow-hidden">
-                   <div className={`h-full ${app.isLocked ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: app.isLocked ? '70%' : '100%' }} />
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm text-[#8E9299]">Unlocks at {app.unlockTime}</p>
+                  <p className="text-xs font-mono text-[#F27D26]">{Math.floor(app.hoursSpentToday)}h {Math.floor((app.hoursSpentToday % 1) * 60)}m usage</p>
                 </div>
+                <div className="h-1.5 w-full bg-[#0C0C0E] rounded-full overflow-hidden">
+                   <div className={`h-full ${app.isLocked ? 'bg-gradient-to-r from-red-500 to-[#F27D26]' : 'bg-green-500'}`} style={{ width: app.isLocked ? `${Math.min(100, app.hoursSpentToday * 20)}%` : '100%' }} />
+                </div>
+                
+                {app.isLocked && (
+                  <button 
+                    onClick={() => generateOTP(app.id)}
+                    className="w-full mt-6 py-3 bg-[#1C1C1F] text-white rounded-xl text-sm font-bold hover:bg-[#2C2C2F] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Lock className="w-4 h-4" /> Request Temporary Access
+                  </button>
+                )}
               </motion.div>
             ))}
           </div>
@@ -697,7 +865,7 @@ function TimeLockView({
                 </button>
                 
                 <p className="text-[10px] text-center text-[#8E9299] uppercase tracking-widest font-mono">
-                  OTP Expires in 04:59
+                  OTP Expires in {Math.floor(otpTimer / 60)}:{String(otpTimer % 60).padStart(2, '0')}
                 </p>
               </div>
             ) : (
@@ -940,6 +1108,309 @@ function AiSuggestionItem({ suggestion, onAccept }: AiSuggestionItemProps) {
         <button className="px-6 py-3 border border-[#1C1C1F] text-[#8E9299] rounded-2xl font-bold text-sm hover:text-white hover:border-white transition-all">
           Dismiss
         </button>
+      </div>
+    </div>
+  );
+}
+
+function OnboardingForm({ onComplete }: { onComplete: (profile: UserProfile) => void }) {
+  const [formData, setFormData] = useState<Omit<UserProfile, 'isSetupComplete'>>({
+    name: '',
+    email: '',
+    mobile: '',
+    profession: 'student'
+  });
+  const [error, setError] = useState('');
+
+  const validate = () => {
+    if (!formData.name.trim()) return "Personnel Name required.";
+    if (!formData.email.includes('@')) return "Valid Neural Email required.";
+    if (formData.mobile.length < 8) return "Invalid Neural ID (Mobile).";
+    return null;
+  };
+
+  const handleFinish = () => {
+    const err = validate();
+    if (err) {
+      setError(err);
+      return;
+    }
+    onComplete({ ...formData, isSetupComplete: true });
+  };
+
+  return (
+    <div className="space-y-8">
+      {error && (
+        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl text-red-400 text-sm font-mono text-center">
+          SYSTEM ERROR: {error}
+        </div>
+      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#8E9299]">Personnel Name</label>
+          <input 
+            className="w-full bg-[#0C0C0E] border border-[#1C1C1F] rounded-2xl py-4 px-6 text-white focus:outline-none focus:border-[#F27D26]/50"
+            placeholder="John Doe"
+            value={formData.name}
+            onChange={(e) => setFormData({...formData, name: e.target.value})}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#8E9299]">Primary Email</label>
+          <input 
+            className="w-full bg-[#0C0C0E] border border-[#1C1C1F] rounded-2xl py-4 px-6 text-white focus:outline-none focus:border-[#F27D26]/50"
+            placeholder="john@nexus.com"
+            value={formData.email}
+            onChange={(e) => setFormData({...formData, email: e.target.value})}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#8E9299]">Neural ID (Mobile)</label>
+          <input 
+            className="w-full bg-[#0C0C0E] border border-[#1C1C1F] rounded-2xl py-4 px-6 text-white focus:outline-none focus:border-[#F27D26]/50"
+            placeholder="+1 234 567 890"
+            value={formData.mobile}
+            onChange={(e) => setFormData({...formData, mobile: e.target.value})}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#8E9299]">Operational Class</label>
+          <select 
+            className="w-full bg-[#0C0C0E] border border-[#1C1C1F] rounded-2xl py-4 px-6 text-white appearance-none focus:outline-none focus:border-[#F27D26]/50"
+            value={formData.profession}
+            onChange={(e) => setFormData({...formData, profession: e.target.value as any})}
+          >
+            <option value="student">Student Scholar</option>
+            <option value="corporate">Corporate Unit</option>
+            <option value="creative">Creative Node</option>
+            <option value="entrepreneur">Growth Specialist</option>
+          </select>
+        </div>
+      </div>
+
+      <button 
+        onClick={handleFinish}
+        disabled={!formData.name || !formData.email || !formData.mobile}
+        className="w-full bg-[#F27D26] text-white py-5 rounded-[24px] font-black text-xl shadow-2xl shadow-[#F27D26]/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-20 translate-y-4"
+      >
+        Establish Neuro-Link
+      </button>
+    </div>
+  );
+}
+
+function ScheduleView({ tasks }: { tasks: Task[] }) {
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime());
+  }, [tasks]);
+
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  return (
+    <div className="space-y-10 animate-in fade-in duration-500">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight text-white mb-1">Neural Schedule</h2>
+        <p className="text-[#8E9299]">Linear task timeline for upcoming objective windows.</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-12">
+        {days.map(day => (
+          <div key={day} className="space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-3">
+              <span className="w-2 h-2 rounded-full bg-[#F27D26]" /> {day}
+            </h3>
+            <div className="space-y-2 border-l border-[#1C1C1F] ml-1 pl-6">
+              {sortedTasks.filter(t => {
+                 const d = new Date(t.dueDate || 0);
+                 return d.toLocaleDateString('en-US', { weekday: 'long' }) === day;
+              }).length === 0 ? (
+                <p className="text-xs text-[#4A4A4A] font-mono italic">NO OBJECTIVES ASSIGNED</p>
+              ) : (
+                sortedTasks.filter(t => {
+                  const d = new Date(t.dueDate || 0);
+                  return d.toLocaleDateString('en-US', { weekday: 'long' }) === day;
+                }).map(t => (
+                  <div key={t.id} className="bg-[#151518] border border-[#1C1C1F] p-4 rounded-2xl flex items-center justify-between group hover:border-[#F27D26]/20 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-2 h-2 rounded-full ${t.priority === 'high' ? 'bg-red-500' : 'bg-orange-500'}`} />
+                      <p className={`text-sm font-medium ${t.isCompleted ? 'text-[#4A4A4A] line-through' : 'text-white'}`}>{t.title}</p>
+                    </div>
+                    <span className="text-[10px] font-mono text-[#8E9299] opacity-0 group-hover:opacity-100 transition-opacity">
+                      {new Date(t.dueDate || 0).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PerformanceView({ tasks, apps }: { tasks: Task[], apps: LockedApp[] }) {
+  const data = [
+    { name: 'Mon', focus: 65, distracted: 40 },
+    { name: 'Tue', focus: 80, distracted: 30 },
+    { name: 'Wed', focus: 45, distracted: 65 },
+    { name: 'Thu', focus: 90, distracted: 20 },
+    { name: 'Fri', focus: 75, distracted: 35 },
+    { name: 'Sat', focus: 60, distracted: 50 },
+    { name: 'Sun', focus: 85, distracted: 15 },
+  ];
+
+  const completedCount = tasks.filter(t => t.isCompleted).length;
+  const totalCount = tasks.length;
+  const completionRate = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
+
+  return (
+    <div className="space-y-10 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-1">Performance Neuralytics</h2>
+          <p className="text-[#8E9299]">Analysis of your discipline flow across time buffers.</p>
+        </div>
+        <div className="flex items-center gap-4">
+           <div className="p-4 bg-[#151518] border border-[#1C1C1F] rounded-2xl flex items-center gap-3">
+              <Award className="w-5 h-5 text-[#F27D26]" />
+              <div>
+                <p className="text-[10px] font-mono text-[#8E9299] uppercase">Current Level</p>
+                <p className="text-sm font-bold text-white">Focus Master VII</p>
+              </div>
+           </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+           {/* Main Productivity Chart */}
+           <div className="bg-[#151518] border border-[#1C1C1F] p-8 rounded-[40px] h-[400px]">
+              <div className="flex items-center justify-between mb-8">
+                 <h4 className="font-bold text-white flex items-center gap-2">
+                   <BarChart3 className="w-5 h-5 text-[#F27D26]" /> Focus vs Distraction (Week)
+                 </h4>
+                 <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                       <div className="w-2 h-2 rounded-full bg-[#F27D26]" />
+                       <span className="text-[10px] text-[#8E9299] uppercase font-mono">Focus</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <div className="w-2 h-2 rounded-full bg-white/20" />
+                       <span className="text-[10px] text-[#8E9299] uppercase font-mono">Distraction</span>
+                    </div>
+                 </div>
+              </div>
+              <div className="h-[280px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data}>
+                    <defs>
+                      <linearGradient id="colorFocus" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#F27D26" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#F27D26" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1C1C1F" vertical={false} />
+                    <XAxis 
+                      dataKey="name" 
+                      stroke="#4A4A4A" 
+                      fontSize={10} 
+                      axisLine={false} 
+                      tickLine={false}
+                      dy={10}
+                    />
+                    <YAxis 
+                      stroke="#4A4A4A" 
+                      fontSize={10} 
+                      axisLine={false} 
+                      tickLine={false}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#151518', border: '1px solid #1C1C1F', borderRadius: '12px', fontSize: '12px' }}
+                      itemStyle={{ color: '#E4E3E0' }}
+                    />
+                    <Area type="monotone" dataKey="focus" stroke="#F27D26" fillOpacity={1} fill="url(#colorFocus)" strokeWidth={3} />
+                    <Area type="monotone" dataKey="distracted" stroke="#4A4A4A" fillOpacity={0} strokeWidth={2} strokeDasharray="5 5" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+           </div>
+
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-[#151518] border border-[#1C1C1F] p-6 rounded-[32px]">
+                 <p className="text-[10px] font-mono text-[#8E9299] uppercase tracking-widest mb-4">Task Resolution Matrix</p>
+                 <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                       <span className="text-sm">Success Rate</span>
+                       <span className="text-sm font-bold text-green-400">{completionRate}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-[#0C0C0E] rounded-full overflow-hidden">
+                       <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${completionRate}%` }}
+                        className="h-full bg-green-500" 
+                       />
+                    </div>
+                    <p className="text-xs text-[#8E9299]">Higher than 68% of users in your cohort.</p>
+                 </div>
+              </div>
+              <div className="bg-[#151518] border border-[#1C1C1F] p-6 rounded-[32px] flex flex-col justify-between">
+                 <p className="text-[10px] font-mono text-[#8E9299] uppercase tracking-widest mb-4">TimeLock Efficiency</p>
+                 <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-3xl font-bold text-white leading-none">14.2h</p>
+                      <p className="text-xs text-[#8E9299] mt-2">Saved from distractions this week</p>
+                    </div>
+                    <div className="flex gap-1">
+                       {[0.2, 0.4, 0.6, 0.8, 1, 0.5, 0.9].map((h, i) => (
+                         <div key={i} className="w-2 bg-[#F27D26]/20 rounded-full" style={{ height: h * 40 }} />
+                       ))}
+                    </div>
+                 </div>
+              </div>
+           </div>
+        </div>
+
+        <div className="space-y-8">
+           <div className="bg-[#151518] border border-[#1C1C1F] p-8 rounded-[40px] relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4">
+                <Sparkles className="w-5 h-5 text-[#F27D26] opacity-50" />
+              </div>
+              <h4 className="font-bold text-white mb-6">Distraction Hotspots</h4>
+              <div className="space-y-6">
+                 {apps.map(app => (
+                   <div key={app.id} className="space-y-2">
+                     <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-2">
+                          <Smartphone className="w-4 h-4 text-[#8E9299]" />
+                          <span className="text-sm font-medium">{app.name}</span>
+                       </div>
+                       <span className="text-xs font-mono text-red-400">{Math.floor(app.hoursSpentToday)}h usage</span>
+                     </div>
+                     <div className="h-1 w-full bg-[#0C0C0E] rounded-full overflow-hidden">
+                       <div className="h-full bg-red-400" style={{ width: `${Math.min(100, app.hoursSpentToday * 20)}%` }} />
+                     </div>
+                   </div>
+                 ))}
+              </div>
+              <button className="w-full mt-8 py-3 border border-[#1C1C1F] rounded-2xl text-xs font-mono uppercase text-[#8E9299] hover:text-white hover:border-[#F27D26]/30 transition-all">
+                Download Full Neural Logs
+              </button>
+           </div>
+
+           <div className="bg-gradient-to-br from-[#F27D26] to-[#FF4444] p-8 rounded-[40px] text-white space-y-4 shadow-2xl shadow-[#F27D26]/20">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+                 <Brain className="w-6 h-6 text-white" />
+              </div>
+              <h4 className="text-xl font-bold">Neural Insight</h4>
+              <p className="text-sm text-white/80 leading-relaxed">
+                "Your focus peak occurs at 10:15 AM. You are most vulnerable to TikTok between 8:00 PM and 10:00 PM. Schedule a TimeLock burst during these windows to maximize discipline."
+              </p>
+           </div>
+        </div>
       </div>
     </div>
   );
