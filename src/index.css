@@ -34,6 +34,48 @@
   .glow-orange {
     box-shadow: 0 0 20px rgba(242, 125, 38, 0.4);
   }
+
+  .neural-grid {
+    background-image: 
+      linear-gradient(rgba(242, 125, 38, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(242, 125, 38, 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  .scanline {
+    width: 100%;
+    height: 100px;
+    z-index: 50;
+    background: linear-gradient(0deg, rgba(242, 125, 38, 0) 0%, rgba(242, 125, 38, 0.1) 50%, rgba(242, 125, 38, 0) 100%);
+    opacity: 0.1;
+    position: absolute;
+    bottom: 100%;
+    animation: scanline 8s linear infinite;
+    pointer-events: none;
+  }
+
+  .text-glitch {
+    text-shadow: 2px 2px #ff0000;
+  }
+
+  .neural-aura {
+    background: radial-gradient(circle at center, rgba(242, 125, 38, 0.15) 0%, transparent 70%);
+  }
+
+  .binary-text {
+    mask-image: linear-gradient(to bottom, white 50%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, white 50%, transparent);
+  }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes neural-pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.1); }
 }
 
 @keyframes float {

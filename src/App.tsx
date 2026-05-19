@@ -33,7 +33,11 @@ import {
   Pause,
   RotateCcw,
   BarChart3,
-  Award
+  Award,
+  Database,
+  MessageSquare,
+  Activity,
+  History
 } from 'lucide-react';
 import { 
   LineChart, 
@@ -44,7 +48,10 @@ import {
   Tooltip, 
   ResponsiveContainer, 
   AreaChart, 
-  Area 
+  Area,
+  BarChart,
+  Bar,
+  Cell
 } from 'recharts';
 import { Task, TaskSuggestion, LockedApp, OTPState, UserProfile } from './types';
 
@@ -59,10 +66,35 @@ export default function App() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filter, setFilter] = useState<'all' | 'today' | 'upcoming'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isBooting, setIsBooting] = useState(true);
 
-  const [activeView, setActiveView] = useState<'dashboard' | 'locks' | 'schedule' | 'performance' | 'reflect' | 'settings'>('dashboard');
+  const [activeView, setActiveView] = useState<'dashboard' | 'locks' | 'schedule' | 'performance' | 'integrations' | 'reflect' | 'settings'>('dashboard');
+  const [activeNotification, setActiveNotification] = useState<{ id: string; title: string; message: string; icon: any } | null>(null);
   
-  // Pomodoro State
+  // Simulated Neural Log
+  const [logs, setLogs] = useState<string[]>(['System initialized.', 'Neural link standby...']);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsBooting(false), 3500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isBooting) {
+      const interval = setInterval(() => {
+        const events = [
+          'Scanning for neural leaks...',
+          'Integrity check: 98.4%',
+          'Dopamine spike detected in Social Ops',
+          'Adjusting focus window latency...',
+          'TimeLock nodes synchronized.',
+          'Memory allocation stabilized.'
+        ];
+        setLogs(prev => [events[Math.floor(Math.random() * events.length)], ...prev.slice(0, 4)]);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isBooting]);
   const [pomodoro, setPomodoro] = useState<{
     isActive: boolean;
     timeLeft: number;
@@ -78,7 +110,18 @@ export default function App() {
   // Local storage persistence
   useEffect(() => {
     const savedUser = localStorage.getItem('timelock_user');
-    if (savedUser) setUser(JSON.parse(savedUser));
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+      if (!parsedUser.permissions) {
+        parsedUser.permissions = {
+          usageStats: false,
+          notifications: false,
+          accessibility: false,
+          overlay: false
+        };
+      }
+      setUser(parsedUser);
+    }
 
     const savedTasks = localStorage.getItem('focusflow_tasks');
     const savedLocks = localStorage.getItem('timelock_apps');
@@ -156,6 +199,16 @@ export default function App() {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     setOtp({ code, expiresAt: new Date(Date.now() + 300000).toISOString(), isAvailable: true, targetAppId: appId });
     setOtpTimer(300);
+    
+    // Simulate Notification
+    setTimeout(() => {
+      setActiveNotification({
+        id: Math.random().toString(),
+        title: 'Neural Authentication',
+        message: `Your TimeLock access code is: ${code}. Valid for 5 minutes.`,
+        icon: Shield
+      });
+    }, 1500);
   };
 
 
@@ -283,36 +336,17 @@ export default function App() {
             <NavItem icon={<Shield />} label="TimeLock" active={activeView === 'locks'} onClick={() => setActiveView('locks')} />
             <NavItem icon={<Calendar />} label="Schedule" active={activeView === 'schedule'} onClick={() => setActiveView('schedule')} />
             <NavItem icon={<TrendingUp />} label="Performance" active={activeView === 'performance'} onClick={() => setActiveView('performance')} />
+            <NavItem icon={<Zap />} label="Integrations" active={activeView === 'integrations'} onClick={() => setActiveView('integrations')} />
             <NavItem icon={<Brain />} label="Reflect" active={activeView === 'reflect'} onClick={() => setActiveView('reflect')} />
           </nav>
 
           <div className="pt-6 border-t border-[#1C1C1F] w-full">
-            <div className="bg-[#151518] rounded-2xl p-4 mb-4 border border-[#1C1C1F]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-mono text-[#8E9299] uppercase tracking-widest">{pomodoro.mode} session</span>
-                <span className="text-white font-bold">{Math.floor(pomodoro.timeLeft / 60)}:{String(pomodoro.timeLeft % 60).padStart(2, '0')}</span>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={togglePomodoro}
-                  className="flex-1 py-2 bg-[#F27D26]/10 text-[#F27D26] rounded-xl hover:bg-[#F27D26]/20 transition-all flex items-center justify-center"
-                >
-                  {pomodoro.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                </button>
-                <button 
-                  onClick={resetPomodoro}
-                  className="p-2 text-[#8E9299] hover:text-white rounded-xl transition-all"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
             <NavItem icon={<Settings />} label="Settings" active={activeView === 'settings'} onClick={() => setActiveView('settings')} />
           </div>
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className="flex-1 flex flex-col overflow-hidden neural-grid">
           {/* Top Bar */}
           <header className="h-20 border-b border-[#1C1C1F] flex items-center justify-between px-8 bg-[#0C0C0E]/50 backdrop-blur-sm">
             <div className="flex items-center gap-4 flex-1">
@@ -348,7 +382,7 @@ export default function App() {
           </header>
 
           {/* Activity Scroll */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-8 pb-32">
             <div className="max-w-5xl mx-auto space-y-10">
               {activeView === 'dashboard' ? (
                 <>
@@ -460,6 +494,11 @@ export default function App() {
                 />
               ) : activeView === 'performance' ? (
                 <PerformanceView tasks={tasks} apps={lockedApps} />
+              ) : activeView === 'integrations' ? (
+                <IntegrationsView user={user} onUpdateProfile={(u) => {
+                  setUser(u);
+                  localStorage.setItem('timelock_user', JSON.stringify(u));
+                }} />
               ) : activeView === 'schedule' ? (
                 <ScheduleView tasks={tasks} />
               ) : (
@@ -468,6 +507,66 @@ export default function App() {
             </div>
           </div>
         </main>
+      </div>
+
+      {/* Neural Control Strip */}
+      <div className="fixed bottom-0 left-0 right-0 z-[150] h-14 bg-[#0C0C0E]/90 backdrop-blur-xl border-t border-[#1C1C1F] px-6 hidden md:flex items-center justify-between">
+        <div className="flex items-center gap-8 h-full">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+            <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#8E9299]">Neural Integrity: 99.9%</span>
+          </div>
+          
+          <div className="h-4 w-[1px] bg-[#1C1C1F]" />
+          
+          <div className="flex items-center gap-4 overflow-hidden max-w-xl">
+             <Activity className="w-4 h-4 text-[#F27D26]" />
+             <div className="flex items-baseline gap-2 animate-in slide-in-from-bottom-2 duration-500">
+               <span className="text-[#F27D26] font-mono text-xs animate-pulse">&gt;</span>
+               <p className="text-[11px] font-mono text-white/80 whitespace-nowrap overflow-hidden text-ellipsis">
+                 {logs[0]}
+               </p>
+             </div>
+             <div className="hidden lg:flex gap-4 opacity-40">
+                {logs.slice(1, 3).map((log, i) => (
+                  <p key={i} className="text-[10px] font-mono whitespace-nowrap">{log}</p>
+                ))}
+             </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-6">
+          <div className="h-14 flex items-center bg-[#151518]/50 px-4 gap-4 border-l border-[#1C1C1F]">
+             <div className="flex items-center gap-3 min-w-[120px]">
+                <Timer className="w-4 h-4 text-[#F27D26]" />
+                <div>
+                   <p className="text-[9px] font-mono text-[#8E9299] uppercase leading-none mb-1">{pomodoro.mode}</p>
+                   <p className="text-sm font-bold text-white leading-none font-mono tracking-tighter">
+                     {Math.floor(pomodoro.timeLeft / 60)}:{String(pomodoro.timeLeft % 60).padStart(2, '0')}
+                   </p>
+                </div>
+             </div>
+             <div className="flex items-center gap-1">
+                <button 
+                  onClick={togglePomodoro}
+                  className="p-2 text-[#F27D26] hover:bg-[#F27D26]/10 rounded-lg transition-all"
+                >
+                  {pomodoro.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                </button>
+                <button 
+                  onClick={resetPomodoro}
+                  className="p-2 text-[#8E9299] hover:text-white rounded-lg transition-all"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </button>
+             </div>
+          </div>
+
+          <div className="h-14 flex items-center bg-[#F27D26] px-6 gap-3 group cursor-help">
+             <Shield className="w-4 h-4 text-white" />
+             <span className="text-[10px] font-black text-white uppercase tracking-widest group-hover:tracking-[0.2em] transition-all duration-500">Secure Protocol v2</span>
+          </div>
+        </div>
       </div>
 
       {/* Suggestion Box Button (Floating Action) */}
@@ -631,7 +730,7 @@ export default function App() {
       
       {/* Onboarding Modal */}
       <AnimatePresence>
-        {(!user || !user.isSetupComplete) && (
+        {(!user || !user.isSetupComplete) && !isBooting && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0C0C0E]">
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
@@ -644,7 +743,7 @@ export default function App() {
                  <div className="w-20 h-20 bg-[#F27D26] rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-[#F27D26]/20">
                     <Shield className="w-10 h-10 text-white" />
                  </div>
-                 <h2 className="text-4xl font-black text-white tracking-tighter mb-2">Initialize Your Armor</h2>
+                 <h2 className="text-4xl font-black text-white tracking-tighter mb-2 uppercase">Neural Initialization</h2>
                  <p className="text-[#8E9299]">Setup your neural discipline profile to begin the reorganization.</p>
               </div>
 
@@ -656,6 +755,112 @@ export default function App() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Boot sequence / Splash */}
+      <AnimatePresence>
+        {isBooting && (
+          <motion.div 
+            exit={{ opacity: 0, scale: 1.1 }}
+            transition={{ duration: 1, ease: [0.4, 0, 0.2, 1] }}
+            className="fixed inset-0 z-[300] bg-[#0C0C0E] flex flex-col items-center justify-center overflow-hidden"
+          >
+            {/* Neural Background Mask */}
+            <div className="absolute inset-0 opacity-10 pointer-events-none select-none overflow-hidden binary-text">
+               <div className="grid grid-cols-12 gap-0 leading-none text-[8px] font-mono text-[#F27D26]">
+                 {Array.from({ length: 2400 }).map((_, i) => (
+                   <span key={i} className="opacity-20">{Math.random() > 0.5 ? '1' : '0'}</span>
+                 ))}
+               </div>
+            </div>
+
+            <div className="neural-aura absolute inset-0 animate-pulse bg-blend-screen" />
+            <div className="scanline" />
+            
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="relative mb-12"
+            >
+              <div className="absolute inset-0 bg-[#F27D26] blur-[120px] opacity-30 animate-pulse" />
+              <div className="w-40 h-40 rounded-[48px] border-4 border-[#F27D26]/30 flex items-center justify-center rotate-45 relative overflow-hidden group">
+                <div className="absolute inset-0 bg-[#F27D26]/10 group-hover:bg-[#F27D26]/20 transition-colors" />
+                <Shield className="w-20 h-20 text-[#F27D26] -rotate-45 relative z-10 drop-shadow-[0_0_15px_rgba(242,125,38,0.5)]" />
+              </div>
+            </motion.div>
+            
+            <div className="space-y-6 w-72 relative z-10">
+               <div className="space-y-2">
+                 <div className="h-1 w-full bg-[#1C1C1F] rounded-full overflow-hidden border border-white/5">
+                    <motion.div 
+                      initial={{ x: '-100%' }}
+                      animate={{ x: '0%' }}
+                      transition={{ duration: 3, ease: "easeInOut" }}
+                      className="h-full bg-gradient-to-r from-[#F27D26] via-[#FF4444] to-[#F27D26] bg-[length:200%_100%]"
+                    />
+                 </div>
+                 <div className="flex justify-between font-mono text-[9px] text-[#8E9299] uppercase tracking-widest">
+                    <span>Neural Link</span>
+                    <span className="text-[#F27D26] animate-pulse">Synchronizing...</span>
+                 </div>
+               </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-[#151518] border border-[#1C1C1F] p-3 rounded-xl flex items-center gap-3">
+                     <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]" />
+                     <span className="text-[8px] font-mono text-white/50">NODES: ACTIVE</span>
+                  </div>
+                  <div className="bg-[#151518] border border-[#1C1C1F] p-3 rounded-xl flex items-center gap-3">
+                     <div className="w-2 h-2 rounded-full bg-[#F27D26] animate-pulse" />
+                     <span className="text-[8px] font-mono text-white/50">SEC: LEVEL 4</span>
+                  </div>
+               </div>
+            </div>
+
+            <div className="absolute bottom-12 flex flex-col items-center gap-2">
+               <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.5em] mb-4">Nexus.Discipline.v2.0.48</p>
+               <div className="flex gap-1 h-3 items-end">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <motion.div 
+                      key={i}
+                      initial={{ height: "20%" }}
+                      animate={{ height: ["20%", "100%", "20%"] }}
+                      transition={{ duration: 1, repeat: Infinity, delay: i * 0.1 }}
+                      className="w-0.5 bg-[#F27D26]/20"
+                    />
+                  ))}
+               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Neural Notification System */}
+      <AnimatePresence>
+        {activeNotification && (
+          <motion.div 
+            initial={{ opacity: 0, y: -100, x: '-50%' }}
+            animate={{ opacity: 1, y: 32, x: '-50%' }}
+            exit={{ opacity: 0, y: -100, x: '-50%' }}
+            className="fixed top-0 left-1/2 z-[200] w-full max-w-sm px-4"
+          >
+            <div className="bg-[#151518] border border-[#F27D26]/30 rounded-3xl p-5 shadow-2xl flex items-start gap-4 backdrop-blur-xl">
+              <div className="w-10 h-10 bg-[#F27D26] rounded-full flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#F27D26]/20">
+                <activeNotification.icon className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-sm font-bold text-white mb-1">{activeNotification.title}</h4>
+                <p className="text-xs text-[#8E9299] leading-relaxed">{activeNotification.message}</p>
+              </div>
+              <button 
+                onClick={() => setActiveNotification(null)}
+                className="text-[#8E9299] hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -665,12 +870,17 @@ function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNo
     <button 
       onClick={onClick}
       className={`
-      w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all group
-      ${active ? 'bg-[#F27D26]/10 text-[#F27D26]' : 'text-[#8E9299] hover:text-white hover:bg-[#151518]'}
+      w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all group relative overflow-hidden
+      ${active ? 'bg-gradient-to-r from-[#F27D26]/10 to-transparent text-[#F27D26]' : 'text-[#8E9299] hover:text-white hover:bg-[#151518]'}
     `}>
-      <span className={`w-5 h-5 ${active ? 'text-[#F27D26]' : 'opacity-70 group-hover:opacity-100'}`}>{icon}</span>
-      <span className="hidden lg:block text-sm font-medium">{label}</span>
-      {active && <div className="hidden lg:block ml-auto w-1.5 h-1.5 bg-[#F27D26] rounded-full shadow-[0_0_8px_#F27D26]" />}
+      {active && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#F27D26]" />}
+      <div className={`transition-transform duration-300 ${active ? 'scale-110' : 'group-hover:scale-110'}`}>
+        {icon}
+      </div>
+      <span className="hidden lg:block font-medium tracking-tight whitespace-nowrap">{label}</span>
+      {active && <div className="hidden lg:block ml-auto">
+        <div className="w-1.5 h-1.5 bg-[#F27D26] rounded-full shadow-[0_0_12px_#F27D26] animate-pulse" />
+      </div>}
     </button>
   );
 }
@@ -1114,7 +1324,7 @@ function AiSuggestionItem({ suggestion, onAccept }: AiSuggestionItemProps) {
 }
 
 function OnboardingForm({ onComplete }: { onComplete: (profile: UserProfile) => void }) {
-  const [formData, setFormData] = useState<Omit<UserProfile, 'isSetupComplete'>>({
+  const [formData, setFormData] = useState<Omit<UserProfile, 'isSetupComplete' | 'permissions'>>({
     name: '',
     email: '',
     mobile: '',
@@ -1135,7 +1345,16 @@ function OnboardingForm({ onComplete }: { onComplete: (profile: UserProfile) => 
       setError(err);
       return;
     }
-    onComplete({ ...formData, isSetupComplete: true });
+    onComplete({ 
+      ...formData, 
+      isSetupComplete: true,
+      permissions: {
+        usageStats: false,
+        notifications: false,
+        accessibility: false,
+        overlay: false
+      }
+    });
   };
 
   return (
@@ -1202,6 +1421,153 @@ function OnboardingForm({ onComplete }: { onComplete: (profile: UserProfile) => 
   );
 }
 
+function IntegrationsView({ user, onUpdateProfile }: { user: UserProfile | null, onUpdateProfile: (user: UserProfile) => void }) {
+  if (!user) return null;
+
+  const togglePermission = (key: keyof UserProfile['permissions']) => {
+    const currentPermissions = user.permissions || {
+      usageStats: false,
+      notifications: false,
+      accessibility: false,
+      overlay: false
+    };
+
+    const updatedUser = {
+      ...user,
+      permissions: {
+        ...currentPermissions,
+        [key]: !currentPermissions[key]
+      }
+    };
+    onUpdateProfile(updatedUser);
+  };
+
+  return (
+    <div className="space-y-10 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-white mb-1">Neural Integrations</h2>
+          <p className="text-[#8E9299]">Configure hardware access and data pipelines.</p>
+        </div>
+        <div className="flex items-center gap-2 px-4 py-2 bg-green-500/10 rounded-full border border-green-500/20">
+          <Shield className="w-4 h-4 text-green-400" />
+          <span className="text-xs font-bold text-green-400">Secure Link Active</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="space-y-6">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Smartphone className="w-5 h-5 text-[#F27D26]" /> Android/iOS Native Bridge
+          </h3>
+          <div className="space-y-4">
+            <PermissionCard 
+              icon={<TrendingUp className="w-5 h-5" />}
+              title="Usage Access Permission"
+              description="Required to monitor foreground applications and calculate neural wear-and-tear (Screen Time)."
+              status={user.permissions?.usageStats || false}
+              onClick={() => togglePermission('usageStats')}
+            />
+            <PermissionCard 
+              icon={<Lock className="w-5 h-5" />}
+              title="Accessibility Service"
+              description="Used to detect when restricted apps are launched and perform neural habit correction (App Locking)."
+              status={user.permissions?.accessibility || false}
+              onClick={() => togglePermission('accessibility')}
+            />
+            <PermissionCard 
+              icon={<LayoutDashboard className="w-5 h-5" />}
+              title="Display Over Other Apps"
+              description="Provides the secure TimeLock overlay when a restricted node is accessed."
+              status={user.permissions?.overlay || false}
+              onClick={() => togglePermission('overlay')}
+            />
+            <PermissionCard 
+              icon={<Bell className="w-5 h-5" />}
+              title="Push Notification System"
+              description="Enables OTP delivery via secure channels (System, Neural SMS, or Neural WhatsApp)."
+              status={user.permissions?.notifications || false}
+              onClick={() => togglePermission('notifications')}
+            />
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#F27D26]" /> Data Pipelines & OTP
+          </h3>
+          <div className="bg-[#151518] border border-[#1C1C1F] p-8 rounded-[40px] space-y-6">
+             <div>
+               <p className="text-xs font-mono text-[#8E9299] uppercase tracking-widest mb-4">Neural Storage Allocation</p>
+               <div className="flex items-center gap-4 p-4 bg-[#0C0C0E] border border-[#1C1C1F] rounded-24">
+                  <div className="w-10 h-10 bg-orange-500/20 rounded-xl flex items-center justify-center text-white">
+                    <Database className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">Cloud Firestore Node</p>
+                    <p className="text-xs text-[#8E9299]">Storing 142 usage events locally</p>
+                  </div>
+                  <button className="ml-auto text-orange-400 text-xs font-mono">SYNC</button>
+               </div>
+             </div>
+
+             <div className="space-y-4">
+                <p className="text-xs font-mono text-[#8E9299] uppercase tracking-widest mb-4">OTP delivery channels</p>
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="p-4 bg-[#1C1C1F] rounded-2xl border border-[#F27D26]/20 flex flex-col gap-4">
+                      <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center text-white">
+                        <Smartphone className="w-4 h-4" />
+                      </div>
+                      <p className="text-xs font-bold font-mono">Neural SMS</p>
+                      <span className="text-[10px] text-green-400 uppercase tracking-tighter">API Connected</span>
+                   </div>
+                   <div className="p-4 bg-[#0C0C0E] rounded-2xl border border-[#1C1C1F] flex flex-col gap-4 opacity-50 grayscale">
+                      <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center text-white">
+                        <MessageSquare className="w-4 h-4" />
+                      </div>
+                      <p className="text-xs font-bold font-mono">Neural WhatsApp</p>
+                      <span className="text-[10px] text-[#8E9299] uppercase tracking-tighter">Requires Pro</span>
+                   </div>
+                </div>
+             </div>
+
+             <div className="pt-6 border-t border-[#1C1C1F]">
+                <p className="text-xs leading-relaxed text-[#8E9299]">
+                   <span className="text-white font-bold">Developer Note:</span> In a production environment, app locking is achieved via a background service that continuously polls <span className="font-mono text-xs">UsageStatsManager</span> (Android) or listens to <span className="font-mono text-xs">FamilyControls</span> (iOS). Usage data is persisted to an encrypted SQLite database and synced to Firestore for cross-device disciplinary continuity.
+                </p>
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PermissionCard({ icon, title, description, status, onClick }: { icon: any, title: string, description: string, status: boolean, onClick: () => void }) {
+  return (
+    <div className={`p-6 rounded-3xl border transition-all ${status ? 'bg-green-500/5 border-green-500/20' : 'bg-[#151518] border-[#1C1C1F]'} group hover:border-[#F27D26]/30`}>
+      <div className="flex items-start gap-4">
+        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 ${status ? 'bg-green-500/20 text-green-400' : 'bg-[#0C0C0E] text-[#8E9299]'}`}>
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <h4 className="text-sm font-bold text-white">{title}</h4>
+            <div className={`w-2 h-2 rounded-full ${status ? 'bg-green-400 animate-pulse' : 'bg-[#1C1C1F]'}`} />
+          </div>
+          <p className="text-xs text-[#8E9299] leading-relaxed mb-4">{description}</p>
+          <button 
+            onClick={onClick}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${status ? 'bg-green-500/10 text-green-400' : 'bg-[#1C1C1F] text-white hover:bg-[#2C2C2F]'}`}
+          >
+            {status ? 'Permission Granted' : 'Request Access'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ScheduleView({ tasks }: { tasks: Task[] }) {
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => new Date(a.dueDate || 0).getTime() - new Date(b.dueDate || 0).getTime());
@@ -1254,14 +1620,20 @@ function ScheduleView({ tasks }: { tasks: Task[] }) {
 
 function PerformanceView({ tasks, apps }: { tasks: Task[], apps: LockedApp[] }) {
   const data = [
-    { name: 'Mon', focus: 65, distracted: 40 },
-    { name: 'Tue', focus: 80, distracted: 30 },
-    { name: 'Wed', focus: 45, distracted: 65 },
-    { name: 'Thu', focus: 90, distracted: 20 },
-    { name: 'Fri', focus: 75, distracted: 35 },
-    { name: 'Sat', focus: 60, distracted: 50 },
-    { name: 'Sun', focus: 85, distracted: 15 },
+    { name: 'Mon', focus: 65, distracted: 40, opens: 142 },
+    { name: 'Tue', focus: 80, distracted: 30, opens: 98 },
+    { name: 'Wed', focus: 45, distracted: 65, opens: 210 },
+    { name: 'Thu', focus: 90, distracted: 20, opens: 64 },
+    { name: 'Fri', focus: 75, distracted: 35, opens: 112 },
+    { name: 'Sat', focus: 60, distracted: 50, opens: 180 },
+    { name: 'Sun', focus: 85, distracted: 15, opens: 45 },
   ];
+
+  const appDistribution = apps.map((app, i) => ({
+    name: app.name,
+    value: app.hoursSpentToday,
+    color: ['#F27D26', '#FF4444', '#8E9299'][i % 3]
+  }));
 
   const completedCount = tasks.filter(t => t.isCompleted).length;
   const totalCount = tasks.length;
@@ -1339,23 +1711,26 @@ function PerformanceView({ tasks, apps }: { tasks: Task[], apps: LockedApp[] }) 
               </div>
            </div>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-[#151518] border border-[#1C1C1F] p-6 rounded-[32px]">
-                 <p className="text-[10px] font-mono text-[#8E9299] uppercase tracking-widest mb-4">Task Resolution Matrix</p>
-                 <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                       <span className="text-sm">Success Rate</span>
-                       <span className="text-sm font-bold text-green-400">{completionRate}%</span>
-                    </div>
-                    <div className="h-2 w-full bg-[#0C0C0E] rounded-full overflow-hidden">
-                       <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${completionRate}%` }}
-                        className="h-full bg-green-500" 
-                       />
-                    </div>
-                    <p className="text-xs text-[#8E9299]">Higher than 68% of users in your cohort.</p>
+                 <p className="text-[10px] font-mono text-[#8E9299] uppercase tracking-widest mb-4">Neural Open Frequency</p>
+                 <div className="h-[120px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <BarChart data={data}>
+                          <Bar dataKey="opens" radius={[4, 4, 0, 0]}>
+                             {data.map((entry, index) => (
+                               <Cell key={`cell-${index}`} fill={entry.opens > 150 ? '#ef4444' : '#F27D26'} fillOpacity={0.8} />
+                             ))}
+                          </Bar>
+                          <XAxis dataKey="name" hide />
+                          <Tooltip 
+                            cursor={{ fill: 'transparent' }}
+                            contentStyle={{ backgroundColor: '#1C1C1F', border: 'none', borderRadius: '8px', fontSize: '10px' }} 
+                          />
+                       </BarChart>
+                    </ResponsiveContainer>
                  </div>
+                 <p className="text-xs text-[#8E9299] mt-4">Total App Swaps: <span className="text-white font-bold">1,049</span> this week.</p>
               </div>
               <div className="bg-[#151518] border border-[#1C1C1F] p-6 rounded-[32px] flex flex-col justify-between">
                  <p className="text-[10px] font-mono text-[#8E9299] uppercase tracking-widest mb-4">TimeLock Efficiency</p>

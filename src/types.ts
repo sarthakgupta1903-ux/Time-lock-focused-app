@@ -23,6 +23,20 @@ export interface UserProfile {
   mobile: string;
   profession: 'student' | 'corporate' | 'creative' | 'entrepreneur' | 'other';
   isSetupComplete: boolean;
+  permissions: {
+    usageStats: boolean;
+    notifications: boolean;
+    accessibility: boolean;
+    overlay: boolean;
+  };
+}
+
+export interface UsageLog {
+  id: string;
+  timestamp: string;
+  appId: string;
+  durationMinutes: number;
+  type: 'usage' | 'unlock' | 'lock';
 }
 
 export interface LockedApp {
