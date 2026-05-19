@@ -1,0 +1,6 @@
+{
+  "name": "TimeLock Pro",
+  "description": "Advanced disciplinary dashboard with schedule-based app locking simulation and OTP-based unlocking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
